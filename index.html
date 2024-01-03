@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        canvas {
+            width: 800;
+            height: 800px;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="canvas" width="800" height="800"></canvas>
+    <div class="toolbar">
+        <button id="bfs">BFS</button>
+        <button id="dfs">DFS</button>
+        <button id="ids">IDS</button>
+        <button></button>
+        <button id="reset">RESET</button>
+    </div>
+
+    <script src="./board.js"></script>
+    <script>
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+        const controls = {
+            bfs: document.getElementById("bfs"),
+            dfs: document.getElementById("dfs"),
+            ids: document.getElementById("ids"),
+            reset: document.getElementById("reset"),
+        };
+
+        const types = {
+            NODE: "node",
+            WALL: "wall",
+        };
+
+        const colors = {
+            NODE: "#fff",
+            VISITED: "#f44",
+            SOLUTION: "#00f",
+            PREV: "#f88",
+            NEXT: "#4aa",
+            target: "#0f0",
+            WALL: "#444",
+        };
+
+        class Node {
+            type = types.NODE;
+            left = null;
+            right = null;
+            top = null;
+            bottom = null;
+
+            constructor(x, y, w, h, color) {
+                this.x = x;
+                this.y = y;
+                this.w = w;
+                this.h = h;
+                this.color = color;
+            }
+
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.strokeStyle = "#000";
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+                ctx.strokeRect(this.x, this.y, this.w, this.h);
+                return this;
+            }
+
+            setColor(color) {
+                this.color = color;
+                return this;
+            }
+
+            setType(type) {
+                this.type = type;
+                return this;
+            }
+
+            get hash() {
+                return `${this.x},${this.y}`;
+            }
+        }
+
+        const w = 25;
+        const h = 25;
+        const nodes = [];
+
+
+        // CREATE NODES 
+        for (let i = 0; i < w; i++) {
+            for (let j = 0; j < h; j++) {
+                // const x = w - (i + 1);
+                const x = i;
+                const y = h - (j + 1);
+
+                if (!nodes[x]) nodes[x] = [];
+
+                const node = new Node(i * 32, j * 32, 32, 32, "#fff");
+                node.draw(ctx);
+                nodes[x][y] = node;
+            }
+        }
+
+
+        // CONNECT NODES
+        for (let i = 0; i < w; i++) {
+            for (let j = 0; j < h; j++) {
+                // const x = w - (i + 1);
+                const x = i;
+                const y = h - (j + 1);
+
+                const node = nodes[x][y];
+                node.cords = [x, y];
+
+                const left = nodes[x - 1]?.[y];
+                const right = nodes[x + 1]?.[y];
+                const top = nodes[x]?.[y - 1];
+                const bottom = nodes[x]?.[y + 1];
+
+                node.left = left;
+                node.right = right;
+                node.top = top;
+                node.bottom = bottom;
+            }
+        }
+
+        for (let i = 0; i < board.length; i++) {
+            const [x, y] = board[i];
+
+            nodes[x][y].setType(types.WALL).setColor(colors.WALL).draw(ctx);
+        }
+
+        function resetBoard() {
+            for (let i = 0; i < w; i++) {
+                for (let j = 0; j < h; j++) {
+                    const node = nodes[i][j];
+                    if (node.type === types.WALL) continue;
+
+                    node.setType(types.NODE).setColor(colors.NODE).draw(ctx);
+                }
+            }
+        }
+
+        function resetSolutionToColor(color = colors.PREV) {
+            for (let i = 0; i < w; i++) {
+                for (let j = 0; j < h; j++) {
+                    const node = nodes[i][j];
+                    if (node.type === types.WALL) continue;
+                    if (node.color !== colors.VISITED) continue;
+
+                    node.setType(types.NODE).setColor(color).draw(ctx);
+                }
+            }
+        }
+
+        const waitFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+        // BFS
+        async function bfs(root, target = [24, 24]) {
+            const queue = [root];
+            const visited = {};
+            let itr = 0;
+
+            const path = [];
+
+            while (queue.length > 0) {
+                const node = queue.shift();
+                if (visited[node.hash]) continue;
+                visited[node.hash] = true;
+                node.setColor(colors.VISITED).draw(ctx);
+
+                const [i, j] = node.cords;
+
+                if (i === target[0] && j == target[1]) {
+                    node.setColor(colors.TARGET).draw(ctx);
+                    path.push(node);
+                    break;
+                }
+
+                const { left, right, top, bottom } = node;
+
+                if (left && !visited[left.hash] && left.type !== types.WALL) {
+                    left.parent = node;
+                    left.setColor(colors.NEXT).draw(ctx);
+                    queue.push(left);
+                    await waitFor(10);
+                }
+
+                if (right && !visited[right.hash] && right.type !== types.WALL) {
+                    right.parent = node;
+                    right.setColor(colors.NEXT).draw(ctx);
+                    queue.push(right);
+                    await waitFor(10);
+                }
+
+                if (top && !visited[top.hash] && top.type !== types.WALL) {
+                    top.parent = node;
+                    top.setColor(colors.NEXT).draw(ctx);
+                    queue.push(top);
+                    await waitFor(10);
+                }
+
+                if (bottom && !visited[bottom.hash] && bottom.type !== types.WALL) {
+                    bottom.parent = node;
+                    bottom.setColor(colors.NEXT).draw(ctx);
+                    queue.push(bottom);
+                    await waitFor(10);
+                }
+            }
+
+            // Retrieve the path from root to target
+            let currentNode = path[0];
+            const pathToTarget = [currentNode];
+            while (currentNode?.parent) {
+                pathToTarget.unshift(currentNode.parent);
+                currentNode.setColor(colors.SOLUTION).draw(ctx);
+                currentNode = currentNode.parent;
+            }
+
+            return pathToTarget;
+        }
+
+        // DFS
+        async function dfs(root, target = [24, 24]) {
+            const stack = [root];
+            const visited = {};
+            let itr = 0;
+
+            const path = [];
+
+            while (stack.length > 0) {
+                const node = stack.pop();
+                if (visited[node.hash]) continue;
+                visited[node.hash] = true;
+                node.setColor(colors.VISITED).draw(ctx);
+
+                const [i, j] = node.cords;
+
+                if (i === target[0] && j == target[1]) {
+                    node.setColor(colors.TARGET).draw(ctx);
+                    path.push(node);
+                    break;
+                }
+
+                const { left, right, top, bottom } = node;
+
+                if (left && !visited[left.hash] && left.type !== types.WALL) {
+                    left.parent = node;
+                    left.setColor(colors.NEXT).draw(ctx);
+                    stack.push(left);
+                    await waitFor(5);
+                }
+
+                if (right && !visited[right.hash] && right.type !== types.WALL) {
+                    right.parent = node;
+                    right.setColor(colors.NEXT).draw(ctx);
+                    stack.push(right);
+                    await waitFor(5);
+                }
+
+                if (top && !visited[top.hash] && top.type !== types.WALL) {
+                    top.parent = node;
+                    top.setColor(colors.NEXT).draw(ctx);
+                    stack.push(top);
+                    await waitFor(5);
+                }
+
+                if (bottom && !visited[bottom.hash] && bottom.type !== types.WALL) {
+                    bottom.parent = node;
+                    bottom.setColor(colors.NEXT).draw(ctx);
+                    stack.push(bottom);
+                    await waitFor(5);
+                }
+            }
+
+            // Retrieve the path from root to target
+            let currentNode = path[0];
+            const pathToTarget = [currentNode];
+            while (currentNode?.parent) {
+                pathToTarget.unshift(currentNode.parent);
+                currentNode.setColor(colors.SOLUTION).draw(ctx);
+                currentNode = currentNode.parent;
+            }
+
+            return pathToTarget;
+        }
+
+
+        // IDS
+        async function ids(root, target = [24, 24]) {
+            let depth = 0;
+            let pathToTarget = [];
+
+            while (true) {
+                resetSolutionToColor();
+                const result = await dfsLimited(root, target, depth);
+                if (result.length > 1) {
+                    pathToTarget = result;
+                    break;
+                }
+                depth++;
+            }
+
+            return pathToTarget;
+        }
+
+        // DFS with depth limit
+        async function dfsLimited(root, target, depth) {
+            const stack = [{ node: root, level: 0 }];
+            const visited = {};
+            let itr = 0;
+
+            const path = [];
+
+            while (stack.length > 0) {
+                const { node, level } = stack.pop();
+                if (visited[node.hash]) continue;
+                visited[node.hash] = true;
+                node.setColor(colors.VISITED).draw(ctx);
+
+                const [i, j] = node.cords;
+
+                if (i === target[0] && j == target[1]) {
+                    node.setColor(colors.TARGET).draw(ctx);
+                    path.push(node);
+                    break;
+                }
+
+                if (level < depth) {
+                    const { left, right, top, bottom } = node;
+
+                    if (left && !visited[left.hash] && left.type !== types.WALL) {
+                        left.parent = node;
+                        left.setColor(colors.NEXT).draw(ctx);
+                        stack.push({ node: left, level: level + 1 });
+                        await waitFor(5);
+                    }
+
+                    if (right && !visited[right.hash] && right.type !== types.WALL) {
+                        right.parent = node;
+                        right.setColor(colors.NEXT).draw(ctx);
+                        stack.push({ node: right, level: level + 1 });
+                        await waitFor(5);
+                    }
+
+                    if (top && !visited[top.hash] && top.type !== types.WALL) {
+                        top.parent = node;
+                        top.setColor(colors.NEXT).draw(ctx);
+                        stack.push({ node: top, level: level + 1 });
+                        await waitFor(5);
+                    }
+
+                    if (bottom && !visited[bottom.hash] && bottom.type !== types.WALL) {
+                        bottom.parent = node;
+                        bottom.setColor(colors.NEXT).draw(ctx);
+                        stack.push({ node: bottom, level: level + 1 });
+                        await waitFor(5);
+                    }
+                }
+            }
+
+            // Retrieve the path from root to target
+            let currentNode = path[0];
+            const pathToTarget = [currentNode];
+            while (currentNode?.parent) {
+                pathToTarget.unshift(currentNode.parent);
+                currentNode.setColor(colors.SOLUTION).draw(ctx);
+                currentNode = currentNode.parent;
+            }
+
+            return pathToTarget;
+        }
+
+        controls.bfs.addEventListener("click", () => {
+            resetBoard();
+            bfs(nodes[0][0]).then(console.log);
+        });
+
+        controls.dfs.addEventListener("click", () => {
+            resetBoard();
+            dfs(nodes[0][0]).then(console.log);
+        });
+
+        controls.ids.addEventListener("click", () => {
+            resetBoard();
+            ids(nodes[0][0]).then(console.log);
+        });
+
+        controls.reset.addEventListener("click", () => {
+            resetBoard();
+        });
+
+
+        // DRAW WALLS
+        canvas.addEventListener("click", (e) => {
+            const x = e.offsetX;
+            const y = e.offsetY;
+
+            const node = nodes[Math.floor(x / 32)][h - Math.ceil(y / 32)];
+            const _x = Math.floor(x / 32);
+            const _y = h - Math.ceil(y / 32);
+
+            if (!node) return;
+
+            const color = node.type === types.NODE ? colors.WALL : colors.NODE;
+            const type = node.type === types.NODE ? types.WALL : types.NODE;
+
+            node.setType(type).setColor(color).draw(ctx);
+        });
+    </script>
+</body>
+
+</html>
